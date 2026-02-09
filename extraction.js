@@ -299,11 +299,7 @@ export async function extractPst(buffer, pstName, PST) {
     }
   }
 
-  try {
-    walk(root, '');
-  } catch (err) {
-    warn('Fatal traversal error', err);
-  }
+  walk(root, '');
   if (!messages.length && warnings.length) {
     throw new Error(`Unable to parse PST entries (${warnings[0]})`);
   }
