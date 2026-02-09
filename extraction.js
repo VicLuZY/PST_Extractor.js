@@ -301,7 +301,8 @@ export async function extractPst(buffer, pstName, PST) {
 
   walk(root, '');
   if (!messages.length && warnings.length) {
-    throw new Error(`Unable to parse PST entries (${warnings[0]})`);
+    const preview = warnings.slice(0, 8).join(' | ');
+    throw new Error(`Unable to parse PST entries. Total warnings: ${warnings.length}. Examples: ${preview}`);
   }
   return { messages, attachments };
 }
