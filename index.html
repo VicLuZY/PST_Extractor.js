@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PST Extractor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --accent-hover: #79b8ff;
+      --error: #f85149;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'DM Sans', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+    .container {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 3rem 1.5rem;
+    }
+    h1 { font-size: 1.75rem; font-weight: 600; margin-bottom: 0.5rem; }
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      margin-bottom: 2rem;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 2rem;
+    }
+    .flash {
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      font-size: 0.9rem;
+    }
+    .flash.error { background: rgba(248,81,73,0.15); color: var(--error); border: 1px solid rgba(248,81,73,0.3); }
+    input[type="file"] {
+      display: block;
+      width: 100%;
+      padding: 1rem;
+      border: 2px dashed var(--border);
+      border-radius: 8px;
+      background: rgba(255,255,255,0.02);
+      color: var(--text);
+      font-family: inherit;
+      cursor: pointer;
+    }
+    input[type="file"]:hover { border-color: var(--accent); }
+    input[type="file"]::file-selector-button {
+      padding: 0.5rem 1rem;
+      margin-right: 1rem;
+      border: none;
+      border-radius: 6px;
+      background: var(--accent);
+      color: var(--bg);
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .btn {
+      display: inline-block;
+      padding: 0.75rem 1.5rem;
+      margin-top: 1.25rem;
+      border: none;
+      border-radius: 8px;
+      background: var(--accent);
+      color: var(--bg);
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn:hover { background: var(--accent-hover); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .help { font-size: 0.85rem; color: var(--text-muted); margin-top: 1rem; }
+    footer {
+      margin-top: 3rem;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="status" class="flash" style="display:none"></div>
+    <h1>PST Extractor</h1>
+    <p class="subtitle">Upload one or more Outlook PST files to extract emails, attachments, and Teams/Skype messages. Runs entirely in your browser.</p>
+    <div class="card">
+      <form id="extract-form">
+        <label for="pst_files">Select PST file(s)</label>
+        <input type="file" id="pst_files" name="pst_files" accept=".pst" multiple required>
+        <p class="help">Select multiple .pst files to extract. All will be combined into one ZIP download. Large files may take a while.</p>
+        <button type="submit" class="btn" id="submit-btn">Extract &amp; Download ZIP</button>
+      </form>
+    </div>
+    <footer>
+      PST Extractor — extracts emails, attachments, Teams/Skype from Outlook PST files<br>
+      © 2025 Victor Lü
+    </footer>
+  </div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

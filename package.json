@@ -1,0 +1,8 @@
+{
+  "name": "pst-extractor-ghpages",
+  "version": "0.1.0",
+  "description": "PST Extractor - Pure static, no build",
+  "scripts": {
+    "preview": "npx serve ."
+  }
+}
