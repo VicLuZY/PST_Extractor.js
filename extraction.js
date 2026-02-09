@@ -187,6 +187,14 @@ function getAttachmentExt(bytes) {
 export async function extractPst(buffer, pstName, PST) {
   const messages = [];
   const attachments = [];
+  const warnings = [];
+  const warn = (ctx, err) => {
+    const msg = err && err.message ? err.message : String(err || 'Unknown error');
+    warnings.push(`${ctx}: ${msg}`);
+    if (typeof console !== 'undefined' && console.warn) {
+      console.warn(`[PST extractor] ${ctx}:`, err);
+    }
+  };
   const pst = new PST.PSTFile(buffer);
   const store = pst.getMessageStore();
   if (!store) throw new Error('No message store');
@@ -196,26 +204,75 @@ export async function extractPst(buffer, pstName, PST) {
   function walk(folder, folderPath) {
     const name = (folder.displayName || 'Folder').replace(/[^\w\-.]/g, '_').slice(0, 80);
     const fullPath = folderPath ? `${folderPath}/${folder.displayName || 'Folder'}` : (folder.displayName || 'Folder');
-    for (const entry of folder.getSubFolderEntries()) {
-      const sub = folder.getSubFolder(entry.nid);
-      if (sub) walk(sub, fullPath);
+    let subFolderEntries = [];
+    try {
+      subFolderEntries = folder.getSubFolderEntries() || [];
+    } catch (err) {
+      warn(`Skipping subfolders for ${fullPath}`, err);
     }
-    const contents = folder.getContents();
+    for (const entry of subFolderEntries) {
+      try {
+        const sub = folder.getSubFolder(entry.nid);
+        if (sub) walk(sub, fullPath);
+      } catch (err) {
+        warn(`Skipping subfolder nid=${entry?.nid} in ${fullPath}`, err);
+      }
+    }
+    let contents = [];
+    try {
+      contents = folder.getContents() || [];
+    } catch (err) {
+      warn(`Skipping contents for ${fullPath}`, err);
+    }
     for (const entry of contents) {
-      const msg = folder.getMessage(entry.nid);
+      let msg = null;
+      try {
+        msg = folder.getMessage(entry.nid);
+      } catch (err) {
+        warn(`Skipping message nid=${entry?.nid} in ${fullPath}`, err);
+      }
       if (!msg) continue;
-      let rec = msgToDict(msg, pstName, fullPath);
-      const props = msg.getAllProperties ? msg.getAllProperties() : {};
+      let rec;
+      try {
+        rec = msgToDict(msg, pstName, fullPath);
+      } catch (err) {
+        warn(`Skipping message record nid=${entry?.nid} in ${fullPath}`, err);
+        continue;
+      }
+      let props = {};
+      try {
+        props = msg.getAllProperties ? msg.getAllProperties() : {};
+      } catch (err) {
+        warn(`Unable to read properties for nid=${entry?.nid} in ${fullPath}`, err);
+      }
       const getProp = (...keys) => { for (const k of keys) if (props[k] != null) return props[k]; return null; };
       if (!rec.from) rec.from = getProp('0c1a', '0C1A', '0x0c1a', 'Sender name', 'Sender entry name');
       if (!rec.to) {
-        const r = msg.getAllRecipients?.() || [];
+        let r = [];
+        try {
+          r = msg.getAllRecipients?.() || [];
+        } catch (err) {
+          warn(`Unable to read recipients for nid=${entry?.nid} in ${fullPath}`, err);
+        }
         rec.to = getProp('0e04', '0E04', 'Display to', '0c1f', '0C1F') || (r.length ? r.map(x => x['3003'] || x['0c1f'] || x['Email address'] || x['3001'] || '').join('; ') : '');
       }
       if (!rec.subject) rec.subject = getProp('37', '0x37', '0037', 'Subject');
-      if (!rec.body) rec.body = getProp('1000', '0x1000', '1000', 'Body', 'Plain text message body') || (msg.bodyHTML ? String(msg.bodyHTML).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : '');
+      if (!rec.body) {
+        let html = '';
+        try {
+          html = msg.bodyHTML ? String(msg.bodyHTML).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : '';
+        } catch (err) {
+          warn(`Unable to read bodyHTML for nid=${entry?.nid} in ${fullPath}`, err);
+        }
+        rec.body = getProp('1000', '0x1000', '1000', 'Body', 'Plain text message body') || html;
+      }
       messages.push(rec);
-      const entries = msg.getAttachmentEntries ? msg.getAttachmentEntries() : [];
+      let entries = [];
+      try {
+        entries = msg.getAttachmentEntries ? msg.getAttachmentEntries() : [];
+      } catch (err) {
+        warn(`Unable to read attachment entries for nid=${entry?.nid} in ${fullPath}`, err);
+      }
       for (let i = 0; i < entries.length; i++) {
         try {
           const att = msg.getAttachment(i);
@@ -235,12 +292,21 @@ export async function extractPst(buffer, pstName, PST) {
           const extFromName = /\.([a-z0-9]{2,6})$/i.exec(safe);
           const finalName = extFromName ? safe : `${safe}${ext}`;
           attachments.push({ folderPath: name, name: finalName, data: bytes });
-        } catch (_) {}
+        } catch (err) {
+          warn(`Skipping attachment index=${i} for nid=${entry?.nid} in ${fullPath}`, err);
+        }
       }
     }
   }
 
-  walk(root, '');
+  try {
+    walk(root, '');
+  } catch (err) {
+    warn('Fatal traversal error', err);
+  }
+  if (!messages.length && warnings.length) {
+    throw new Error(`Unable to parse PST entries (${warnings[0]})`);
+  }
   return { messages, attachments };
 }
 

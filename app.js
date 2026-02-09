@@ -34,7 +34,7 @@ form.addEventListener('submit', async (e) => {
   setProgress('Extracting… This may take a few minutes for large files.');
 
   const zip = new JSZip();
-  const summary = { pst_files: [], total_emails: 0, total_attachments: 0, total_teams: 0 };
+  const summary = { pst_files: [], failed_files: [], total_emails: 0, total_attachments: 0, total_teams: 0 };
   const stamp = new Date().toISOString().replace(/[-:]/g, '').slice(0, 15);
   const rootName = `extraction_${stamp}`;
 
@@ -43,14 +43,25 @@ form.addEventListener('submit', async (e) => {
       const file = files[i];
       const name = (file.name || 'pst').replace(/\.pst$/i, '') || 'pst';
       setProgress(`Processing ${i + 1}/${files.length}: ${file.name}…`);
-      const buffer = await file.arrayBuffer();
-      const { messages, attachments } = await extractPst(buffer, name, PST);
-      const basePath = `${rootName}/${name}`;
-      const stats = buildOutput(messages, attachments, zip, basePath);
-      summary.pst_files.push({ name, ...stats });
-      summary.total_emails += stats.emails;
-      summary.total_attachments += stats.attachments;
-      summary.total_teams += stats.teams_messages;
+      try {
+        const buffer = await file.arrayBuffer();
+        const { messages, attachments } = await extractPst(buffer, name, PST);
+        const basePath = `${rootName}/${name}`;
+        const stats = buildOutput(messages, attachments, zip, basePath);
+        summary.pst_files.push({ name, ...stats });
+        summary.total_emails += stats.emails;
+        summary.total_attachments += stats.attachments;
+        summary.total_teams += stats.teams_messages;
+      } catch (err) {
+        const reason = err && err.message ? err.message : String(err);
+        summary.failed_files.push({ name, reason });
+        console.warn(`[PST extractor] Failed file ${file.name}:`, err);
+      }
+    }
+
+    if (!summary.pst_files.length) {
+      const firstReason = summary.failed_files[0]?.reason || 'Unknown parser error';
+      throw new Error(`All files failed to extract. First error: ${firstReason}`);
     }
 
     zip.file(`${rootName}/summary.json`, JSON.stringify(summary, null, 2));
@@ -62,7 +73,9 @@ form.addEventListener('submit', async (e) => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(a.href);
-    setStatus(`Done! Extracted ${summary.total_emails} emails, ${summary.total_attachments} attachments.`);
+    setStatus(summary.failed_files.length
+      ? `Done with warnings: extracted ${summary.total_emails} emails, ${summary.total_attachments} attachments. Failed files: ${summary.failed_files.map(x => x.name).join(', ')}`
+      : `Done! Extracted ${summary.total_emails} emails, ${summary.total_attachments} attachments.`);
   } catch (err) {
     setStatus('Extraction failed: ' + (err.message || err), true);
   } finally {
