@@ -248,13 +248,31 @@ export async function extractPst(buffer, pstName, PST) {
       const getProp = (...keys) => { for (const k of keys) if (props[k] != null) return props[k]; return null; };
       if (!rec.from) rec.from = getProp('0c1a', '0C1A', '0x0c1a', 'Sender name', 'Sender entry name');
       if (!rec.to) {
-        const r = msg.getAllRecipients?.() || [];
+        let r = [];
+        try {
+          r = msg.getAllRecipients?.() || [];
+        } catch (err) {
+          warn(`Unable to read recipients for nid=${entry?.nid} in ${fullPath}`, err);
+        }
         rec.to = getProp('0e04', '0E04', 'Display to', '0c1f', '0C1F') || (r.length ? r.map(x => x['3003'] || x['0c1f'] || x['Email address'] || x['3001'] || '').join('; ') : '');
       }
       if (!rec.subject) rec.subject = getProp('37', '0x37', '0037', 'Subject');
-      if (!rec.body) rec.body = getProp('1000', '0x1000', '1000', 'Body', 'Plain text message body') || (msg.bodyHTML ? String(msg.bodyHTML).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : '');
+      if (!rec.body) {
+        let html = '';
+        try {
+          html = msg.bodyHTML ? String(msg.bodyHTML).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : '';
+        } catch (err) {
+          warn(`Unable to read bodyHTML for nid=${entry?.nid} in ${fullPath}`, err);
+        }
+        rec.body = getProp('1000', '0x1000', '1000', 'Body', 'Plain text message body') || html;
+      }
       messages.push(rec);
-      const entries = msg.getAttachmentEntries ? msg.getAttachmentEntries() : [];
+      let entries = [];
+      try {
+        entries = msg.getAttachmentEntries ? msg.getAttachmentEntries() : [];
+      } catch (err) {
+        warn(`Unable to read attachment entries for nid=${entry?.nid} in ${fullPath}`, err);
+      }
       for (let i = 0; i < entries.length; i++) {
         try {
           const att = msg.getAttachment(i);
@@ -274,7 +292,9 @@ export async function extractPst(buffer, pstName, PST) {
           const extFromName = /\.([a-z0-9]{2,6})$/i.exec(safe);
           const finalName = extFromName ? safe : `${safe}${ext}`;
           attachments.push({ folderPath: name, name: finalName, data: bytes });
-        } catch (_) {}
+        } catch (err) {
+          warn(`Skipping attachment index=${i} for nid=${entry?.nid} in ${fullPath}`, err);
+        }
       }
     }
   }
